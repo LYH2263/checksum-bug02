@@ -10,9 +10,9 @@ func DigestStream(ctx context.Context, opts Options, data []byte) (*Manifest, er
 	if err := p.Feed(ctx, data); err != nil {
 		return nil, err
 	}
-	return p.Finish()
+	return p.Finish(ctx)
 }
 
 func ServeDigest(ctx context.Context, p *Pipeline, body []byte) (*Manifest, error) {
-	return DigestStream(context.Background(), p.opts, body)
+	return DigestStream(ctx, p.opts, body)
 }

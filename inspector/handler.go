@@ -1,7 +1,6 @@
 package inspector
 
 import (
-	"context"
 	"encoding/json"
 	"github.com/LYH2263/go-checksum"
 	"io"
@@ -23,7 +22,7 @@ func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), 400)
 			return
 		}
-		doc, err := checksum.ServeDigest(context.Background(), a.Pipe, body)
+		doc, err := checksum.ServeDigest(ctx, a.Pipe, body)
 		if err != nil {
 			http.Error(w, err.Error(), 400)
 			return
@@ -38,5 +37,3 @@ func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(v)
 }
-
-var _ context.Context

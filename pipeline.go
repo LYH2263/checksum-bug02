@@ -30,7 +30,7 @@ func New(opts Options) *Pipeline {
 func (p *Pipeline) Stats() Stats {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	rootCRC, rootSHA := p.builder.Root()
+	rootCRC, rootSHA, _ := p.builder.Root(context.Background())
 	return Stats{
 		Chunks: p.builder.Len(), Bytes: p.total, Pending: p.builder.Pending(),
 		RootCRC32: rootCRC, RootSHA256: manifest.FormatSHA(rootSHA),
@@ -86,13 +86,16 @@ func (p *Pipeline) feedLocked(ctx context.Context, data []byte) error {
 	return nil
 }
 
-func (p *Pipeline) Finish() (*Manifest, error) {
+func (p *Pipeline) Finish(ctx context.Context) (*Manifest, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.closed {
 		return nil, ErrClosed
 	}
-	tail, err := p.splitter.Flush(ctxBackground())
+	tail, err := p.splitter.Flush(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +111,7 @@ func (p *Pipeline) Finish() (*Manifest, error) {
 			return nil, err
 		}
 	}
-	return p.builder.Build()
+	return p.builder.Build(ctx)
 }
 
 func (p *Pipeline) Close() error {
@@ -151,5 +154,3 @@ func (p *Pipeline) RollingCRC() uint32 {
 	defer p.mu.Unlock()
 	return p.rolling.CRC()
 }
-
-func ctxBackground() context.Context { return context.Background() }

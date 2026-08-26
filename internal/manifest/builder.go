@@ -1,6 +1,7 @@
 package manifest
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -22,14 +23,18 @@ type Builder struct {
 
 func NewBuilder() *Builder { return &Builder{sha: sha256.New()} }
 
-func (b *Builder) finalizeRoot() {
+func (b *Builder) finalizeRoot(ctx context.Context) error {
 	b.rootCRC = 0
 	h := sha256.New()
 	for _, e := range b.entries {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		b.rootCRC = rollupCRC(b.rootCRC, e.CRC32, e.Data)
 		_, _ = h.Write(e.Data)
 	}
 	copy(b.rootSHA[:], h.Sum(nil))
+	return nil
 }
 
 func (b *Builder) Add(e Entry) error {
@@ -50,13 +55,15 @@ func (b *Builder) Add(e Entry) error {
 	return nil
 }
 
-func (b *Builder) Build() (*Document, error) {
+func (b *Builder) Build(ctx context.Context) (*Document, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if len(b.chunks) == 0 {
 		return nil, fmt.Errorf("no chunks")
 	}
-	b.finalizeRoot()
+	if err := b.finalizeRoot(ctx); err != nil {
+		return nil, err
+	}
 	out := &Document{
 		Chunks: cloneChunks(b.chunks), TotalBytes: b.bytes,
 		RootCRC32: b.rootCRC, RootSHA256: b.rootSHA,
@@ -68,11 +75,13 @@ func (b *Builder) Build() (*Document, error) {
 func (b *Builder) FlushPending() error { b.mu.Lock(); defer b.mu.Unlock(); b.pending = 0; return nil }
 func (b *Builder) Pending() int        { b.mu.Lock(); defer b.mu.Unlock(); return b.pending }
 func (b *Builder) Len() int            { b.mu.Lock(); defer b.mu.Unlock(); return len(b.chunks) }
-func (b *Builder) Root() (uint32, [32]byte) {
+func (b *Builder) Root(ctx context.Context) (uint32, [32]byte, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.finalizeRoot()
-	return b.rootCRC, b.rootSHA
+	if err := b.finalizeRoot(ctx); err != nil {
+		return 0, [32]byte{}, err
+	}
+	return b.rootCRC, b.rootSHA, nil
 }
 
 func (b *Builder) SnapshotRows() []Chunk {

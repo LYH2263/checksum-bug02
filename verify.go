@@ -48,5 +48,5 @@ func (p *Pipeline) buildManifest(ctx context.Context, data []byte) (*manifest.Do
 	if err := q.Feed(ctx, data); err != nil {
 		return nil, err
 	}
-	return q.Finish()
+	return q.Finish(ctx)
 }
